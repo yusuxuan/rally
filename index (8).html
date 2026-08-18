@@ -1599,36 +1599,79 @@ function buildSpectators() {
       if (Math.hypot(gx, gz) > 0.85) continue;
       const y = terrainHeight(x, z);
       const kid = rng() < 0.22;   // 小孩
+      // 面向赛道 (朝向赛道中心线方向 = 向 -normal 方向), 加随机摆动
+      const faceAng = Math.atan2(-T.nx[i] * side, -T.nz[i] * side) + (rng() - 0.5) * 0.7;
       people.push({
-        x, y, z, rot: rng() * TAU, c: Math.floor(rng() * 7),
+        x, y, z, rot: faceAng, c: Math.floor(rng() * 7),
+        skin: Math.floor(rng() * 5),
+        hat: rng() < 0.28, hatC: Math.floor(rng() * 6),
         s: kid ? 0.55 + rng() * 0.2 : 0.88 + rng() * 0.4,
         kid
       });
     }
   }
   if (!people.length) return;
-  const bodyGeo = new THREE.CylinderGeometry(0.26, 0.34, 1.1, 6); bodyGeo.translate(0, 0.55, 0);
-  const headGeo = new THREE.SphereGeometry(0.17, 8, 6); headGeo.translate(0, 1.28, 0);
+  // 几何: 上身 / 腿 / 头 / 手臂 / 帽子
+  const bodyGeo = new THREE.CylinderGeometry(0.26, 0.34, 1.1, 6); bodyGeo.translate(0, 0.72, 0);
+  const legGeo = new THREE.CylinderGeometry(0.2, 0.24, 0.46, 6); legGeo.translate(0, 0.23, 0);
+  const headGeo = new THREE.SphereGeometry(0.17, 8, 6); headGeo.translate(0, 1.34, 0);
+  const armGeo = new THREE.CylinderGeometry(0.055, 0.065, 0.5, 6); armGeo.translate(0, 0.25, 0);
+  const hatGeo = new THREE.CylinderGeometry(0.21, 0.21, 0.14, 8); hatGeo.translate(0, 1.5, 0);
   const bodyMat = stdMat({ color: 0xffffff, roughness: 1 });
+  const legMat = stdMat({ color: 0x3a3f47, roughness: 1 });
   const headMat = stdMat({ color: 0xd9b48a, roughness: 1 });
+  const armMat = stdMat({ color: 0xffffff, roughness: 1 });
+  const hatMat = stdMat({ color: 0xffffff, roughness: 1 });
   const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, people.length);
+  const legs = new THREE.InstancedMesh(legGeo, legMat, people.length);
   const heads = new THREE.InstancedMesh(headGeo, headMat, people.length);
+  const arms = new THREE.InstancedMesh(armGeo, armMat, people.length * 2);
+  const hats = new THREE.InstancedMesh(hatGeo, hatMat, people.length);
   const colors = [0xd94f3d, 0x2f6fd9, 0xf2c94c, 0xf5f5f5, 0x3fae4a, 0x8a4fd9, 0xe8863a];
+  const skinTones = [0xd9b48a, 0xc89a72, 0xe8c9a8, 0xb5835a, 0x9a6b42];
+  const hatColors = [0xc1272d, 0x1f5fa8, 0xe8b23a, 0x2e7d32, 0x6d4c41, 0x444950];
   const m4 = new THREE.Matrix4(), e = new THREE.Euler(), q = new THREE.Quaternion(),
         v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
   people.forEach((p, idx) => {
     e.set(0, p.rot, 0); q.setFromEuler(e); sc.set(p.s, p.s, p.s);
     m4.compose(v.set(p.x, p.y, p.z), q, sc);
     bodies.setMatrixAt(idx, m4);
+    legs.setMatrixAt(idx, m4);
     heads.setMatrixAt(idx, m4);
     col.setHex(colors[p.c % colors.length]);
     bodies.setColorAt(idx, col);
+    col.setHex(skinTones[p.skin % skinTones.length]);
+    heads.setColorAt(idx, col);
+    // 手臂 (两根, 身体两侧自然下垂)
+    const armOff = new THREE.Vector3(0.3, 0.8, 0);
+    armOff.applyAxisAngle(new THREE.Vector3(0, 1, 0), p.rot);
+    for (let a = 0; a < 2; a++) {
+      const side = a === 0 ? -1 : 1;
+      const aw = new THREE.Vector3(armOff.x * side, armOff.y * p.s, armOff.z * side);
+      m4.compose(v.set(p.x + aw.x, p.y + aw.y, p.z + aw.z), q, sc);
+      arms.setMatrixAt(idx * 2 + a, m4);
+      arms.setColorAt(idx * 2 + a, col.setHex(colors[p.c % colors.length]));
+    }
+    // 帽子 (部分观众)
+    if (p.hat) {
+      m4.compose(v.set(p.x, p.y, p.z), q, sc);
+      hats.setMatrixAt(idx, m4);
+      hats.setColorAt(idx, col.setHex(hatColors[p.hatC % hatColors.length]));
+    } else {
+      m4.compose(v.set(p.x, p.y, p.z), q, sc.set(0, 0, 0));
+      hats.setMatrixAt(idx, m4);
+    }
   });
-  bodies.count = heads.count = people.length;
-  bodies.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
+  bodies.count = legs.count = heads.count = hats.count = people.length;
+  arms.count = people.length * 2;
+  bodies.instanceMatrix.needsUpdate = legs.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
+  arms.instanceMatrix.needsUpdate = hats.instanceMatrix.needsUpdate = true;
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
-  scene.add(bodies); scene.add(heads);
-  world.spectators = [bodies, heads];
+  if (heads.instanceColor) heads.instanceColor.needsUpdate = true;
+  if (arms.instanceColor) arms.instanceColor.needsUpdate = true;
+  if (hats.instanceColor) hats.instanceColor.needsUpdate = true;
+  scene.add(bodies, legs, heads, arms, hats);
+  world.spectators = [bodies, legs, heads, arms, hats];
 }
 
 /* 路书 (领航员弯道提示): 预计算赛道弯道 + HUD 显示 */
@@ -1909,7 +1952,7 @@ function buildCockpit(seatY, dashY, swY, swZ, roofY) {
 
   // 方向盘柱 + 方向盘 (驾驶座左侧)
   const column = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), BLACK);
-  column.position.set(-0.30, swY - 0.02, swZ - 0.32); column.rotation.x = 0.5; car.add(column);
+  column.position.set(-0.30, swY - 0.14, swZ - 0.32); column.rotation.x = 0.5; car.add(column);
   const sw = new THREE.Group();
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.024, 10, 24), BLACK);
   rim.rotation.y = Math.PI; sw.add(rim);
@@ -1919,7 +1962,7 @@ function buildCockpit(seatY, dashY, swY, swZ, roofY) {
   }
   const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.03, 12), BLACK);
   hub.rotation.x = Math.PI / 2; sw.add(hub);
-  sw.position.set(-0.30, swY, swZ); sw.rotation.x = -0.5;
+  sw.position.set(-0.30, swY - 0.12, swZ); sw.rotation.x = 0.5;
   car.add(sw); car.steeringWheel = sw;
 
   // 驾驶员 (左侧) + 领航员 (右侧): 分层身体, 正确坐在桶椅上
@@ -1962,6 +2005,19 @@ function buildCockpit(seatY, dashY, swY, swZ, roofY) {
   };
   car.driverHead = makeCrew(-0.30, 0x22303c, 0xf2f4f6);           // 左: 驾驶员 (深蓝赛服)
   car.coDriverHead = makeCrew(0.30, 0x7a2b2b, 0xffd24b);          // 右: 领航员 (红色赛服)
+  // 五点式安全带 (驾驶员 + 领航员): 腰带 + 两条斜肩带
+  const beltMat = new THREE.MeshStandardMaterial({ color: 0x2a2e33, roughness: 0.75 });
+  for (const sx of [-0.30, 0.30]) {
+    const lap = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.28), beltMat);
+    lap.position.set(sx, seatY + 0.26, 0.2); lap.rotation.x = -0.12; car.add(lap);
+    for (const bx of [-1, 1]) {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, 0.52), beltMat);
+      strap.position.set(sx + bx * 0.1, seatY + 0.46, 0.14);
+      strap.rotation.x = -1.05;
+      strap.rotation.z = bx * 0.45;
+      car.add(strap);
+    }
+  }
   // 领航员手中路书小册子
   const book = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.13, 0.03),
     new THREE.MeshStandardMaterial({ color: 0xf5f0e6, roughness: 0.8 }));
@@ -4458,34 +4514,37 @@ function updateCamera(dt) {
     desired = new THREE.Vector3(phys.x - fw.x * dist, phys.y + height, phys.z - fw.z * dist);
     fovBase = 64;
   } else {
-    // 第一人称 (驾驶员视角): 相机在驾驶员头盔位置, 看向车前方
+    // 第一人称 (驾驶员视角): 相机固定在驾驶员眼睛位置, 看向车前方
     car.updateMatrixWorld(true);
     if (car.driverHead) {
       const hp = new THREE.Vector3();
       car.driverHead.getWorldPosition(hp);
-      desired = hp.clone();
-      target = hp.clone().add(new THREE.Vector3(fw.x * 40, 0, fw.z * 40));
+      // 视线位置 = 头盔稍前上方 (眼睛), 跟随车头朝向, 不会滞后后移
+      desired = hp.clone().add(new THREE.Vector3(fw.x * 0.14, 0.03, fw.z * 0.14));
+      target = hp.clone().add(new THREE.Vector3(fw.x * 45, 0.02, fw.z * 45));
     } else {
-      desired = new THREE.Vector3(phys.x - fw.x * 0.3, phys.y + 0.9, phys.z - fw.z * 0.3);
-      target = new THREE.Vector3(phys.x + fw.x * 40, phys.y + 0.9, phys.z + fw.z * 40);
+      desired = new THREE.Vector3(phys.x - fw.x * 0.3, phys.y + 0.95, phys.z - fw.z * 0.3);
+      target = new THREE.Vector3(phys.x + fw.x * 45, phys.y + 0.95, phys.z + fw.z * 45);
     }
     fovBase = 78;
   }
   // 相机贴地: 避免在陡坡上埋进山体
   const ghy = terrainHeight(desired.x, desired.z) + 1.1;
   if (desired.y < ghy) desired.y = ghy;
-  camera.position.lerp(desired, clamp(dt * 14, 0, 1));
+  // 第一人称: 直接贴合头部 (无滞后), 第三人称: 平滑跟随 (速度感后移)
+  if (camState.mode === 1) camera.position.copy(desired);
+  else camera.position.lerp(desired, clamp(dt * 9, 0, 1));
   // 抖动
   const sh = phys.shake * 0.5 + (speedF > 60 ? 0.05 : 0);
   camera.position.x += Math.sin(performance.now() * 0.03) * sh * 0.3;
   camera.position.y += Math.sin(performance.now() * 0.05) * sh * 0.2;
   camera.lookAt(target);
-  // 视角可见性: 第一人称隐藏车顶/头盔/方向盘; 第三人称全部可见
+  // 视角可见性: 第一人称隐藏车顶/头盔(避免挡视线), 保留方向盘
   const firstPerson = camState.mode === 1;
   if (car.roofMesh) car.roofMesh.visible = !firstPerson;
   if (car.driverHead) car.driverHead.visible = !firstPerson;
   if (car.coDriverHead) car.coDriverHead.visible = !firstPerson;
-  if (car.steeringWheel) car.steeringWheel.visible = !firstPerson;
+  if (car.steeringWheel) car.steeringWheel.visible = true;
   // FOV 速度感
   const tfov = fovBase + clamp(speedF / 90, 0, 1) * (firstPerson ? 14 : 12);
   camState.fov = damp(camState.fov, tfov, 3, dt);
@@ -5290,5 +5349,5 @@ try {
   console.error('[boot]', e);
 }
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2ce5f5bdbe109f8',t:'MTc4NzAyOTQxMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2ceaf282c25ae24',t:'MTc4NzAzMjY3OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
