@@ -139,6 +139,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Se
 #wheel-status .ws-bar .fill{height:100%;width:0;background:linear-gradient(90deg,#2bd46b,#ffd52b);transition:width .05s;border-radius:4px}
 #wheel-status .ws-bar .fill.brk{background:linear-gradient(90deg,#ffb02b,#ff4b4b)}
 #wheel-status .ws-lbl{color:#9fb2c2;font-size:11px;margin-top:4px}
+/* 键位设置 */
+#key-box{padding:14px 16px;background:rgba(16,24,32,.72);border:1px solid rgba(255,255,255,.12);border-radius:10px;margin-bottom:12px;font-size:13px}
+#key-box .key-title{font-size:14px;letter-spacing:1px;margin-bottom:8px}
+#key-box .key-sub{font-size:11px;color:#8b97a3;letter-spacing:0}
+#key-list{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px}
+.key-row{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;cursor:pointer;transition:.12s}
+.key-row:hover{border-color:rgba(125,208,255,.5)}
+.key-row.binding{border-color:#ffd24b;background:rgba(255,210,75,.12);animation:keypulse 1s infinite}
+@keyframes keypulse{0%,100%{box-shadow:0 0 0 rgba(255,210,75,0)}50%{box-shadow:0 0 10px rgba(255,210,75,.5)}}
+.key-lab{color:#9fb2c2}
+.key-val{color:#7dd0ff;font-weight:700;letter-spacing:1px;min-width:52px;text-align:right}
+#key-hint{margin-top:8px;font-size:12px;color:#ffd24b;letter-spacing:1px}
 /* 游戏内方向盘指示 */
 #hud-wheel{position:fixed;bottom:110px;left:18px;z-index:10;padding:10px 12px;font-size:11px;line-height:1.6;color:#9fb2c2;display:none;min-width:150px}
 #hud-wheel .hw-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.15);overflow:hidden;margin-top:2px}
@@ -190,7 +202,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Se
   </div>
   <div class="home-hint">
     <b>W</b> 油门 · <b>S</b> 刹车 · <b>A/D</b> 转向 · <b>SPACE</b> 手刹<br>
-    <b>Q/E</b> 换挡 · <b>G</b> 看车 · <b>C</b> 视角 · <b>R</b> 修复 · <b>P</b> 暂停<br>
+    <b>Q/E</b> 换挡 · <b>G</b> 看车 · <b>V</b> 视角 · <b>R</b> 修复 · <b>P</b> 暂停<br>
     🚀 <b>火箭车</b>: SPACE 上升 · C 下降<br>
     🎮 作弊模式开启后局内按 <b>T</b> 调参数<br>
     <span style="color:#ff8b8b">⚠ 200 km/h 撞击或坠落悬崖 = 爆炸</span>
@@ -211,9 +223,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Se
     <div class="set-row" id="set-autogear"><span>自动换挡</span><span class="toggle"></span></div>
     <div class="set-row" id="set-sound"><span>音效</span><span class="toggle"></span></div>
     <div class="set-row" id="set-shadows"><span>阴影</span><span class="toggle"></span></div>
+    <div class="set-row" id="set-handdrawn"><span>手绘画风</span><span class="toggle"></span></div>
     <div class="set-row" id="set-cheats"><span>作弊模式</span><span class="toggle"></span></div>
     <div class="set-row hidden" id="set-invincible"><span>无敌模式</span><span class="toggle"></span></div>
     <div class="set-row" id="set-input"><span>输入设备</span><span class="val" id="set-input-val">键盘</span></div>
+    <div id="key-box">
+      <div class="key-title">键位设置 <span class="key-sub">点击一项后按新键</span></div>
+      <div id="key-list"></div>
+      <div id="key-hint" class="hidden"></div>
+    </div>
     <div id="wheel-status">
       <span class="ws-conn" id="wheel-conn">未连接</span>
       <div>
@@ -282,7 +300,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Se
   <div id="hud-hint" class="panel">
     <b>W</b> 油门 · <b>S</b> 刹车 · <b>SPACE</b> 手刹<br>
     <b>A/D</b> 转向 · <b>Q/E</b> 换挡 · <b>M</b> 自动挡<br>
-    <b>G</b> 看车 · <b>C</b> 视角 · <b>R</b> 修复 · <b>P</b> 暂停<br>
+    <b>G</b> 看车 · <b>V</b> 视角 · <b>R</b> 修复 · <b>P</b> 暂停<br>
     <b id="hud-rocket-hint"></b><span id="hud-cheat-hint"></span>
   </div>
 </div>
@@ -515,7 +533,32 @@ window.addEventListener('error', e => {
 /* =========================================================================
    设置 (主页设置面板)
    ========================================================================= */
-const settings = { autoGear: false, sound: true, shadows: true, inputDevice: 'keyboard', cheats: false };  // 'keyboard' | 'wheel'
+const settings = { autoGear: false, sound: true, shadows: true, inputDevice: 'keyboard', cheats: false, handdrawn: true };  // 'keyboard' | 'wheel'
+
+/* 键位配置 (设置里可修改, localStorage 持久化) */
+const DEFAULT_KEYS = {
+  throttle: 'KeyW', brake: 'KeyS', left: 'KeyA', right: 'KeyD',
+  handbrake: 'Space', gearUp: 'KeyE', gearDown: 'KeyQ', camera: 'KeyV',
+  reset: 'KeyR', autoGear: 'KeyM', orbit: 'KeyG', pause: 'KeyP', cheat: 'KeyT'
+};
+const KEY_LABELS = {
+  throttle: '油门', brake: '刹车', left: '左转', right: '右转',
+  handbrake: '手刹', gearUp: '升挡', gearDown: '降挡', camera: '视角切换',
+  reset: '修复/复位', autoGear: '自动挡', orbit: '环绕视角', pause: '暂停', cheat: '作弊面板'
+};
+let keymap = Object.assign({}, DEFAULT_KEYS);
+try {
+  const saved = localStorage.getItem('rally_keymap');
+  if (saved) Object.assign(keymap, JSON.parse(saved));
+} catch (e) {}
+function keyName(code) {
+  if (code === 'Space') return '空格';
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Arrow')) return { ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' }[code] || code;
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code === 'Escape') return 'Esc';
+  return code;
+}
 // 作弊开关 (作弊模式开启后可用; 局内按 T 调整)
 const cheats = {
   invincible: false,     // 无敌模式
@@ -705,8 +748,19 @@ const gamepad = {
 window.addEventListener('keydown', e => {
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   keys[e.code] = true;
-  if (e.code === 'KeyQ' || e.code === 'KeyE' || e.code === 'KeyC' || e.code === 'KeyR' ||
-      e.code === 'KeyM' || e.code === 'KeyP' || e.code === 'KeyG' || e.code === 'KeyF' || e.code === 'KeyT' || e.code === 'Escape') {
+  // 键位绑定中: 捕获新键
+  if (bindAction) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.code !== 'Escape') {
+      keymap[bindAction] = e.code;
+      try { localStorage.setItem('rally_keymap', JSON.stringify(keymap)); } catch (err) {}
+    }
+    bindAction = null;
+    refreshKeys();
+    return;
+  }
+  if (Object.values(keymap).includes(e.code) || e.code === 'Escape' || e.code === 'KeyC') {
     onKey(e.code);
   }
 });
@@ -1008,6 +1062,98 @@ sunMesh.frustumCulled = false;
 sunMesh.position.set(900, 1400, 700);
 scene.add(sunMesh);
 scene.add(amb);
+
+/* =========================================================================
+   后处理: 手绘漫画风 (墨水描边 + 淡彩平涂 + 复古纸张 + 暗角)
+   ========================================================================= */
+const post = { rt: null, scene: null, cam: null, mat: null, ready: false };
+function initPost() {
+  const w = Math.max(2, renderer.domElement.width), h = Math.max(2, renderer.domElement.height);
+  post.rt = new THREE.WebGLRenderTarget(w, h, {
+    minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+    depthBuffer: true,
+    depthTexture: new THREE.DepthTexture(w, h)
+  });
+  post.scene = new THREE.Scene();
+  post.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  post.mat = new THREE.ShaderMaterial({
+    depthWrite: false, depthTest: false,
+    uniforms: {
+      tDiffuse: { value: post.rt.texture },
+      tDepth: { value: post.rt.depthTexture },
+      uRes: { value: new THREE.Vector2(w, h) },
+      uTime: { value: 0 },
+      uOutline: { value: 1.0 },
+      uPaper: { value: 1.0 }
+    },
+    vertexShader: [
+      'varying vec2 vUv;',
+      'void main(){',
+      '  vUv = uv;',
+      '  gl_Position = vec4(position.xy, 0.0, 1.0);',
+      '}'
+    ].join('\n'),
+    fragmentShader: [
+      'uniform sampler2D tDiffuse;',
+      'uniform sampler2D tDepth;',
+      'uniform vec2 uRes;',
+      'uniform float uTime;',
+      'uniform float uOutline;',
+      'uniform float uPaper;',
+      'varying vec2 vUv;',
+      'float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }',
+      'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+      'float texDepth(vec2 uv){ return texture2D(tDepth, uv).r; }',
+      // 边缘检测: 深度梯度 + 亮度梯度 (Sobel 3x3)
+      'float edgeAt(vec2 uv){',
+      '  vec2 px = vec2(1.0) / uRes;',
+      '  float c = luma(texture2D(tDiffuse, uv).rgb);',
+      '  float d = texDepth(uv);',
+      '  float dx = 0.0, dy = 0.0;',
+      '  for (int i = -1; i <= 1; i++) {',
+      '    for (int j = -1; j <= 1; j++) {',
+      '      vec2 o = vec2(float(i), float(j)) * px;',
+      '      float w = (i == 0 && j == 0) ? 0.0 : 1.0;',
+      '      float dc = abs(c - luma(texture2D(tDiffuse, uv + o).rgb));',
+      '      float dd = abs(d - texDepth(uv + o));',
+      '      float m = dc * 4.0 + dd * 220.0;',
+      '      dx += m * float(i) / (abs(float(i)) + 1e-5) * 0.5;',
+      '      dy += m * float(j) / (abs(float(j)) + 1e-5) * 0.5;',
+      '    }',
+      '  }',
+      '  return clamp(length(vec2(dx, dy)) * 1.4 - 0.08, 0.0, 1.0);',
+      '}',
+      'void main(){',
+      '  vec2 uv = vUv;',
+      '  vec4 col = texture2D(tDiffuse, uv);',
+      // 淡彩平涂: 颜色量化到 ~7 级 + 降饱和
+      '  col.rgb = floor(col.rgb * 7.0 + 0.5) / 7.0;',
+      '  float lum = luma(col.rgb);',
+      '  col.rgb = mix(vec3(lum), col.rgb, 0.52);',
+      // 暖调泛黄
+      '  col.rgb *= vec3(1.05, 1.00, 0.90);',
+      // 墨水描边
+      '  float e = edgeAt(uv) * uOutline;',
+      '  col.rgb = mix(col.rgb, vec3(0.11, 0.09, 0.07), clamp(e, 0.0, 1.0));',
+      // 复古纸张纹理 (低频斑驳 + 高频噪点)
+      '  if (uPaper > 0.01) {',
+      '    float n1 = hash(floor(uv * uRes / 6.0));',
+      '    float n2 = hash(floor(uv * uRes) + uTime * 0.5);',
+      '    float paper = mix(n1, n2, 0.35);',
+      '    col.rgb *= 0.96 + 0.09 * paper;',
+      '  }',
+      // 暗角
+      '  float vig = smoothstep(0.85, 0.25, length(uv - 0.5));',
+      '  col.rgb *= mix(1.0, 0.88, vig);',
+      '  gl_FragColor = vec4(col.rgb, 1.0);',
+      '}'
+    ].join('\n')
+  });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post.mat);
+  quad.frustumCulled = false;
+  post.scene.add(quad);
+  post.ready = true;
+}
 
 /* =========================================================================
    纹理 (canvas)
@@ -2524,7 +2670,7 @@ function buildMonsterCar() {
     ex.position.set(sx * 0.5, 2.75, -1.15); exhaust.add(ex);
   }
   car.add(exhaust); regPart('exhaust', exhaust);
-  buildCockpit(1.86, 2.28, 2.32, 0.6, 2.67);
+  buildCockpit(1.70, 2.18, 2.22, 0.6, 2.67);
   buildNumber('GD', 1.02, 2.0, 0.15, '#1e6e1e');
   // 66 英寸巨轮 (直径 1.68m)
   makeWheel('wheelFL', -1.1, 0.84, +1.45, 0.84, 0.55);
@@ -2713,7 +2859,7 @@ function buildHellcatCar() {
     }
   }
   car.add(exhaust); regPart('exhaust', exhaust);
-  buildCockpit(0.52, 0.94, 0.98, 0.6, 1.12);
+  buildCockpit(0.52, 0.94, 0.98, 0.6, 1.32);
   buildNumber('707', 0.98, 0.64, 0.0, '#3a1c54');
   makeWheel('wheelFL', -0.85, 0.35, +1.45, 0.35, 0.32);
   makeWheel('wheelFR', +0.85, 0.35, +1.45, 0.35, 0.32);
@@ -3743,21 +3889,21 @@ function stepPhysics(dt) {
   // 输入
   // 输入设备: 设置中选择键盘或方向盘 (互斥)
   const useWheel = settings.inputDevice === 'wheel';
-  const thr = useWheel ? gamepad.throttle : (keys['KeyW'] || keys['ArrowUp'] ? 1 : 0);
-  const brk = useWheel ? gamepad.brake : (keys['KeyS'] || keys['ArrowDown'] ? 1 : 0);
+  const thr = useWheel ? gamepad.throttle : (keys[keymap.throttle] || keys['ArrowUp'] ? 1 : 0);
+  const brk = useWheel ? gamepad.brake : (keys[keymap.brake] || keys['ArrowDown'] ? 1 : 0);
   let steer = 0;
   if (useWheel) {
     steer = gamepad.steer;
   } else {
-    if (keys['KeyA'] || keys['ArrowLeft']) steer -= 1;
-    if (keys['KeyD'] || keys['ArrowRight']) steer += 1;
+    if (keys[keymap.left] || keys['ArrowLeft']) steer -= 1;
+    if (keys[keymap.right] || keys['ArrowRight']) steer += 1;
   }
   input.throttle = damp(input.throttle, thr, VEH.rocket ? 30 : 8, dt);
   input.brake = damp(input.brake, brk, 10, dt);
   input.steer = damp(input.steer, steer, 12, dt);
-  input.handbrake = damp(input.handbrake, (useWheel ? gamepad.handbrake : (VEH.rocket ? 0 : keys['Space'])) ? 1 : 0, 14, dt);
-  // 火箭车: SPACE 上升 / C 下降 (取代手刹)
-  input.flyUp = damp(input.flyUp || 0, (VEH.rocket && keys['Space']) ? 1 : 0, 8, dt);
+  input.handbrake = damp(input.handbrake, (useWheel ? gamepad.handbrake : (VEH.rocket ? 0 : keys[keymap.handbrake])) ? 1 : 0, 14, dt);
+  // 火箭车: 手刹键上升 / C 下降 (取代手刹)
+  input.flyUp = damp(input.flyUp || 0, (VEH.rocket && keys[keymap.handbrake]) ? 1 : 0, 8, dt);
   input.flyDown = damp(input.flyDown || 0, (VEH.rocket && keys['KeyC']) ? 1 : 0, 8, dt);
 
   // 最近赛道采样
@@ -4156,7 +4302,11 @@ function stepPhysics(dt) {
   phys.steerVis = damp(phys.steerVis, -input.steer * VEH.steerMax, 10, dt);
 
   const handbrake = input.handbrake > 0.15;
-  const aF = CAR.L * 0.42, bR = CAR.L * 0.58;       // 前/后轴到质心
+  // 转向原点: 四驱 = 车中间, 前驱 = 前面, 后驱 = 后面 (改变前/后轴力臂)
+  let pivotF = 0.42;
+  if (VEH.drive === 'rwd') pivotF = 0.60;
+  else if (VEH.drive === 'fwd') pivotF = 0.22;
+  const aF = CAR.L * pivotF, bR = CAR.L * (1 - pivotF);
   const Iz = CAR.m * CAR.L * CAR.L * 0.13;          // 横摆转动惯量
 
   if (speedF > 0.5) {
@@ -4514,14 +4664,13 @@ function updateCamera(dt) {
     desired = new THREE.Vector3(phys.x - fw.x * dist, phys.y + height, phys.z - fw.z * dist);
     fovBase = 64;
   } else {
-    // 第一人称 (驾驶员视角): 相机固定在驾驶员眼睛位置, 看向车前方
+    // 第一人称 (驾驶员视角): 相机严格贴合驾驶员头盔位置, 看向车前方
     car.updateMatrixWorld(true);
     if (car.driverHead) {
       const hp = new THREE.Vector3();
       car.driverHead.getWorldPosition(hp);
-      // 视线位置 = 头盔稍前上方 (眼睛), 跟随车头朝向, 不会滞后后移
-      desired = hp.clone().add(new THREE.Vector3(fw.x * 0.14, 0.03, fw.z * 0.14));
-      target = hp.clone().add(new THREE.Vector3(fw.x * 45, 0.02, fw.z * 45));
+      desired = hp.clone();
+      target = hp.clone().add(new THREE.Vector3(fw.x * 45, 0, fw.z * 45));
     } else {
       desired = new THREE.Vector3(phys.x - fw.x * 0.3, phys.y + 0.95, phys.z - fw.z * 0.3);
       target = new THREE.Vector3(phys.x + fw.x * 45, phys.y + 0.95, phys.z + fw.z * 45);
@@ -4534,10 +4683,12 @@ function updateCamera(dt) {
   // 第一人称: 直接贴合头部 (无滞后), 第三人称: 平滑跟随 (速度感后移)
   if (camState.mode === 1) camera.position.copy(desired);
   else camera.position.lerp(desired, clamp(dt * 9, 0, 1));
-  // 抖动
-  const sh = phys.shake * 0.5 + (speedF > 60 ? 0.05 : 0);
-  camera.position.x += Math.sin(performance.now() * 0.03) * sh * 0.3;
-  camera.position.y += Math.sin(performance.now() * 0.05) * sh * 0.2;
+  // 抖动 (仅第三人称; 第一人称严格贴头不抖)
+  if (camState.mode === 0) {
+    const sh = phys.shake * 0.5 + (speedF > 60 ? 0.05 : 0);
+    camera.position.x += Math.sin(performance.now() * 0.03) * sh * 0.3;
+    camera.position.y += Math.sin(performance.now() * 0.05) * sh * 0.2;
+  }
   camera.lookAt(target);
   // 视角可见性: 第一人称隐藏车顶/头盔(避免挡视线), 保留方向盘
   const firstPerson = camState.mode === 1;
@@ -4990,6 +5141,7 @@ function buildHomeCards() {
   const sa = document.getElementById('set-autogear'); if (sa) sa.addEventListener('click', () => { settings.autoGear = !settings.autoGear; refreshSettings(); });
   const ss = document.getElementById('set-sound'); if (ss) ss.addEventListener('click', () => { settings.sound = !settings.sound; if (AudioSys.master) AudioSys.master.gain.value = settings.sound ? 0.9 : 0; refreshSettings(); });
   const sh = document.getElementById('set-shadows'); if (sh) sh.addEventListener('click', () => { settings.shadows = !settings.shadows; if (renderer) renderer.shadowMap.enabled = settings.shadows; refreshSettings(); });
+  const shd = document.getElementById('set-handdrawn'); if (shd) shd.addEventListener('click', () => { settings.handdrawn = !settings.handdrawn; refreshSettings(); });
   const si = document.getElementById('set-input'); if (si) si.addEventListener('click', () => {
     settings.inputDevice = settings.inputDevice === 'keyboard' ? 'wheel' : 'keyboard';
     refreshSettings();
@@ -5024,6 +5176,7 @@ function refreshSettings() {
   const s1 = document.getElementById('set-autogear'); if (s1) s1.classList.toggle('on', settings.autoGear);
   const s2 = document.getElementById('set-sound'); if (s2) s2.classList.toggle('on', settings.sound);
   const s3 = document.getElementById('set-shadows'); if (s3) s3.classList.toggle('on', settings.shadows);
+  const s4 = document.getElementById('set-handdrawn'); if (s4) s4.classList.toggle('on', settings.handdrawn);
   // 作弊模式
   const s5 = document.getElementById('set-cheats'); if (s5) s5.classList.toggle('on', settings.cheats);
   const sii = document.getElementById('set-invincible');
@@ -5035,7 +5188,40 @@ function refreshSettings() {
   // 方向盘状态行 (仅方向盘模式显示)
   const ws = document.getElementById('wheel-status');
   if (ws) ws.style.display = settings.inputDevice === 'wheel' ? 'flex' : 'none';
+  refreshKeys();
   updateWheelStatus();
+}
+
+/* 键位绑定状态 */
+let bindAction = null;
+function startKeyBind(action) {
+  bindAction = action;
+  refreshKeys();
+}
+function refreshKeys() {
+  const list = document.getElementById('key-list');
+  if (!list) return;
+  list.innerHTML = '';
+  for (const action in KEY_LABELS) {
+    const row = document.createElement('div');
+    row.className = 'key-row' + (bindAction === action ? ' binding' : '');
+    const lab = document.createElement('span');
+    lab.className = 'key-lab';
+    lab.textContent = KEY_LABELS[action];
+    const val = document.createElement('span');
+    val.className = 'key-val';
+    val.textContent = bindAction === action ? '按下新键…' : keyName(keymap[action]);
+    row.appendChild(lab); row.appendChild(val);
+    row.addEventListener('click', () => startKeyBind(action));
+    list.appendChild(row);
+  }
+  if (bindAction) {
+    const hint = document.getElementById('key-hint');
+    if (hint) { hint.classList.remove('hidden'); hint.textContent = '正在绑定: ' + KEY_LABELS[bindAction] + ' — 按下任意键 (Esc 取消)'; }
+  } else {
+    const hint = document.getElementById('key-hint');
+    if (hint) hint.classList.add('hidden');
+  }
 }
 
 /* 方向盘连接状态 + 油门/刹车实时值 */
@@ -5189,7 +5375,16 @@ function frame() {
   sun.target.updateMatrixWorld();
   sunMesh.position.copy(camera.position).addScaledVector(sunDir, 2100);
 
-  renderer.render(scene, camera);
+  // 手绘漫画风后处理 (墨水描边 + 淡彩平涂 + 复古纸张)
+  if (settings.handdrawn && post.ready) {
+    renderer.setRenderTarget(post.rt);
+    renderer.render(scene, camera);
+    renderer.setRenderTarget(null);
+    post.mat.uniforms.uTime.value = performance.now() / 1000;
+    renderer.render(post.scene, post.cam);
+  } else {
+    renderer.render(scene, camera);
+  }
   if (window.__gameReady === undefined) window.__gameReady = true;
 }
 
@@ -5206,26 +5401,26 @@ function shiftTo(g) {
 }
 
 keyHandlers.push(code => {
-  if (code === 'KeyQ') { // 降档 (仅键盘模式; 火箭车只有 1 挡)
+  if (code === keymap.gearDown) { // 降档 (仅键盘模式; 火箭车只有 1 挡)
     if (!started || settings.inputDevice !== 'keyboard' || VEH.rocket) return;
     if (phys.gear > 1) shiftTo(phys.gear - 1);
     else if (phys.gear === 1) shiftTo(0);
     else if (phys.gear === 0) shiftTo(-1);
   }
-  if (code === 'KeyE') { // 升档 (仅键盘模式; 火箭车只有 1 挡)
+  if (code === keymap.gearUp) { // 升档 (仅键盘模式; 火箭车只有 1 挡)
     if (!started || settings.inputDevice !== 'keyboard' || VEH.rocket) return;
     if (phys.gear === -1) shiftTo(0);
     else if (phys.gear === 0) shiftTo(1);
     else if (phys.gear < VEH.ratios.length) shiftTo(phys.gear + 1);
   }
-  if (code === 'KeyC') { // 切换第一人称/第三人称 (火箭车 C 用于下降)
+  if (code === keymap.camera) { // 切换第一人称/第三人称 (火箭车按键保留下降)
     if (!started) return;
     if (VEH.rocket) return;
     camState.orbit = false;
     camState.mode = camState.mode === 0 ? 1 : 0;
     showMsg(camState.mode === 1 ? '第一人称 (驾驶员视角)' : '第三人称 (追尾)', '#7dd0ff');
   }
-  if (code === 'KeyG') { // 环绕观察车身
+  if (code === keymap.orbit) { // 环绕观察车身
     if (!started) return;
     camState.orbit = !camState.orbit;
     if (camState.orbit) {
@@ -5233,12 +5428,12 @@ keyHandlers.push(code => {
       camState.orbitR = clamp(Math.hypot(dx, dy, dz), 3.5, 45);
       camState.orbitAz = Math.atan2(dx, dz);
       camState.orbitEl = Math.asin(clamp(dy / camState.orbitR, -1, 1));
-      showMsg('环绕视角 · 拖拽旋转 / 滚轮缩放 · G 返回', '#ffd24b');
+      showMsg('环绕视角 · 拖拽旋转 / 滚轮缩放 · ' + keyName(keymap.orbit) + ' 返回', '#ffd24b');
     }
   }
-  if (code === 'KeyR') { if (started) { if (phys.dead || phys.finished) restartStage(); else resetCar(); } }
-  if (code === 'KeyM') { if (started) phys.autoGear = !phys.autoGear; }
-  if (code === 'KeyT') { // 作弊面板 (局内, 需作弊模式开启)
+  if (code === keymap.reset) { if (started) { if (phys.dead || phys.finished) restartStage(); else resetCar(); } }
+  if (code === keymap.autoGear) { if (started) phys.autoGear = !phys.autoGear; }
+  if (code === keymap.cheat) { // 作弊面板 (局内, 需作弊模式开启)
     if (!started || !settings.cheats) return;
     const cp = document.getElementById('cheat');
     if (cp) {
@@ -5248,7 +5443,7 @@ keyHandlers.push(code => {
       paused = opening;   // 打开面板时暂停物理
     }
   }
-  if (code === 'KeyP' || code === 'Escape') {
+  if (code === keymap.pause || code === 'Escape') {
     if (!started) return;
     paused = !paused;
     pauseEl.classList.toggle('hidden', !paused);
@@ -5284,7 +5479,7 @@ function pollGamepadShift() {
    启动
    ========================================================================= */
 function boot() {
-  window.__dbg = { phys, carParts, scene, car, input, camera, renderer, world, keys, gamepad, stepPhysics, camState, terrainHeight, sampleTrack, forwardVec, rightVec, updateTrees, shakeTree, finishStage, restartStage, die, crashRoll, startGame, showPanel, spawnBirds, updateBirds, updateHUD, drawSkid, updateSkidMarks, refreshCheatPanel, get skid() { return skid; }, get birds() { return birds; }, get particles() { return particles; }, get cheats() { return cheats; }, get settings() { return settings; }, get VEHICLES() { return VEHICLES; }, get tutorial() { return tutorial; }, startTutorial, skipTutorial, updateTutorial, finishTutorial, get T() { return T; }, get TRACK() { return TRACK; }, get VEH() { return VEH; }, get lights() { return lightsState; }, get started() { return started; }, get lt() { return lightsTimer; }, get lp() { return lightsPhase; }, get appState() { return appState; }, updateCarVisual, updateCamera, selectTrack, selectVehicle };
+  window.__dbg = { phys, carParts, scene, car, input, camera, renderer, world, keys, gamepad, stepPhysics, camState, terrainHeight, sampleTrack, forwardVec, rightVec, updateTrees, shakeTree, finishStage, restartStage, die, crashRoll, startGame, showPanel, spawnBirds, updateBirds, updateHUD, drawSkid, updateSkidMarks, refreshCheatPanel, get skid() { return skid; }, get birds() { return birds; }, get particles() { return particles; }, get cheats() { return cheats; }, get settings() { return settings; }, get keymap() { return keymap; }, get VEHICLES() { return VEHICLES; }, refreshKeys, get tutorial() { return tutorial; }, startTutorial, skipTutorial, updateTutorial, finishTutorial, get T() { return T; }, get TRACK() { return TRACK; }, get VEH() { return VEH; }, get lights() { return lightsState; }, get started() { return started; }, get lt() { return lightsTimer; }, get lp() { return lightsPhase; }, get appState() { return appState; }, updateCarVisual, updateCamera, selectTrack, selectVehicle };
   VEHICLES.gt.build = buildGTCar;
   VEHICLES.evo.build = buildEVOCar;
   VEHICLES.raptor.build = buildRaptorCar;
@@ -5321,11 +5516,14 @@ function boot() {
     showMsg('自由驾驶 · 按 R 复位 · P 暂停', '#7dff6b');
   });
   resetCar();
+  initPost();
   window.addEventListener('resize', () => {
     if (!renderer) return;
     camera.aspect = (window.innerWidth || 1) / (window.innerHeight || 1);
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    if (post.rt) post.rt.setSize(window.innerWidth || 1, window.innerHeight || 1);
+    if (post.mat) post.mat.uniforms.uRes.value.set(window.innerWidth || 1, window.innerHeight || 1);
   });
   lastT = performance.now();
   requestAnimationFrame(loop);
@@ -5349,5 +5547,5 @@ try {
   console.error('[boot]', e);
 }
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2ceaf282c25ae24',t:'MTc4NzAzMjY3OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a2cee9fb1962ae24',t:'MTc4NzAzNTA4OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
